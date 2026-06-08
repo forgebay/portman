@@ -9,64 +9,31 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    name: build ${{ matrix.target }}-${{ matrix.goarch }}
-    runs-on: ${{ matrix.os }}
+  # Build BOTH macOS architectures on a single Apple Silicon runner. amd64 is
+  # cross-compiled with `clang -arch x86_64` (the macOS SDK is universal), so we
+  # avoid the scarce/slow macos-13 Intel runner entirely.
+  macos:
+    runs-on: macos-14
     env:
-      # Resolves to "true" only when the macOS signing secrets are configured.
       HAS_SIGNING: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14        # Apple Silicon
-            target: darwin
-            goarch: arm64
-          - os: macos-13        # Intel
-            target: darwin
-            goarch: amd64
-          - os: ubuntu-latest   # x86_64
-            target: linux
-            goarch: amd64
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-go@v5
         with:
           go-version: '1.22'
 
-      # getlantern/systray uses CGO (Cocoa on macOS, GTK + AppIndicator on
-      # Linux), so we build natively per OS/arch — no cross-compilation.
-      - name: Install Linux build deps
-        if: matrix.target == 'linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc libgtk-3-dev libayatana-appindicator3-dev
-
       - name: Resolve version
         id: ver
-        shell: bash
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Build
-        env:
-          CGO_ENABLED: 1
-        run: go build -ldflags "-s -w" -o portman ./cmd/portman
-
-      - name: Stage raw binary (consumed by npm & Homebrew)
-        shell: bash
+      - name: Build (arm64 native + amd64 cross)
         run: |
-          mkdir -p dist
-          cp portman "dist/portman-${{ matrix.target }}-${{ matrix.goarch }}"
+          CGO_ENABLED=1 go build -ldflags "-s -w" -o portman-arm64 ./cmd/portman
+          CGO_ENABLED=1 GOARCH=amd64 \
+            CC="clang -arch x86_64" CXX="clang++ -arch x86_64" \
+            go build -ldflags "-s -w" -o portman-amd64 ./cmd/portman
 
-      - name: Package .app (macOS)
-        if: matrix.target == 'darwin'
-        run: bash build/macos/make-bundle.sh ./portman "${{ steps.ver.outputs.version }}"
-
-      # Sign + notarize only when the Apple secrets are configured; otherwise
-      # the unsigned .app from the previous step ships as-is.
-      - name: Sign & notarize (macOS)
-        if: matrix.target == 'darwin' && env.HAS_SIGNING == 'true'
+      - name: Stage raw binaries + bundle .app (per arch)
         env:
           APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
           APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
@@ -75,26 +42,55 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          bash build/macos/sign-notarize.sh "dist/Port Manager.app"
-          # Replace the unsigned zip with the signed + stapled bundle.
-          rm -f "dist/PortManager-macos-${{ matrix.goarch }}.zip"
-          ( cd dist && ditto -c -k --keepParent "Port Manager.app" "PortManager-macos-${{ matrix.goarch }}.zip" )
+          mkdir -p dist
+          for arch in arm64 amd64; do
+            cp "portman-$arch" "dist/portman-darwin-$arch"
+            bash build/macos/make-bundle.sh "./portman-$arch" "${{ steps.ver.outputs.version }}" "$arch"
+            if [ "$HAS_SIGNING" = "true" ]; then
+              bash build/macos/sign-notarize.sh "dist/Port Manager.app"
+              rm -f "dist/PortManager-macos-$arch.zip"
+              ( cd dist && ditto -c -k --keepParent "Port Manager.app" "PortManager-macos-$arch.zip" )
+            fi
+          done
 
-      - name: Package tarball (Linux)
-        if: matrix.target == 'linux'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-macos
+          path: dist/*
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: Build
+        env:
+          CGO_ENABLED: 1
+        run: go build -ldflags "-s -w" -o portman ./cmd/portman
+
+      - name: Stage raw binary + tarball
         run: |
           mkdir -p dist/portman
+          cp portman "dist/portman-linux-amd64"
           cp portman assets/icon.png build/linux/portman.desktop build/linux/install.sh dist/portman/
           chmod +x dist/portman/install.sh
           ( cd dist && tar czf portman-linux-amd64.tar.gz portman && rm -rf portman )
 
       - uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.target }}-${{ matrix.goarch }}
+          name: dist-linux
           path: dist/*
 
   release:
-    needs: build
+    needs: [macos, linux]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     steps:

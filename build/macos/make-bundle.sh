@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # Wrap a built portman binary into a macOS menu-bar .app bundle.
 #
-# Usage: make-bundle.sh <binary-path> <version>
+# Usage: make-bundle.sh <binary-path> <version> [arch]
 #   binary-path : path to the compiled portman binary
 #   version     : version string written into Info.plist (e.g. 1.0.0)
+#   arch        : asset arch label for the zip name (default: uname -m).
+#                 Pass explicitly when cross-building (e.g. amd64 on an
+#                 Apple Silicon runner), since uname -m would be wrong.
 #
 # Produces dist/Port Manager.app and dist/PortManager-macos-<arch>.zip
 set -euo pipefail
 
-BIN="${1:?usage: make-bundle.sh <binary-path> <version>}"
+BIN="${1:?usage: make-bundle.sh <binary-path> <version> [arch]}"
 VERSION="${2:-0.0.0}"
-ARCH="$(uname -m)"
+ARCH="${3:-$(uname -m)}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 
