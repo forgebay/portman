@@ -25,17 +25,25 @@ func Detect(name, exe string, cmd []string) model.Lang {
 	base := strings.ToLower(filepath.Base(name))
 
 	switch {
-	case hasAny(base, "node", "nodejs", "deno", "bun"):
+	// JS runtimes — exact matches so "bundle" (Ruby) isn't mistaken for "bun".
+	case base == "node" || base == "nodejs" || strings.HasPrefix(base, "node-"):
 		return model.Node
+	case base == "bun":
+		return model.Bun
+	case base == "deno":
+		return model.Deno
+	// Ollama is a Go binary; match by name before the Go buildinfo check below.
+	case base == "ollama":
+		return model.Ollama
 	case strings.HasPrefix(base, "python"), base == "py", base == "uvicorn", base == "gunicorn":
 		return model.Python
-	case hasAny(base, "java", "jvm"):
+	case base == "java" || base == "jvm":
 		return model.Java
-	case hasAny(base, "ruby", "puma", "unicorn", "rails"):
+	case base == "ruby" || strings.HasPrefix(base, "ruby"), base == "puma", base == "unicorn", base == "rails", base == "bundle":
 		return model.Ruby
 	case strings.HasPrefix(base, "php"):
 		return model.PHP
-	case hasAny(base, "dotnet", "mono"):
+	case base == "dotnet" || base == "mono":
 		return model.DotNet
 	}
 
@@ -55,14 +63,21 @@ func Detect(name, exe string, cmd []string) model.Lang {
 	return model.Unknown
 }
 
-// hasAny reports whether base equals or contains any of the candidates. We use
-// containment so wrappers like "node-wrapper" still resolve, while the exact
-// matches above guard against false positives.
-func hasAny(base string, candidates ...string) bool {
-	for _, c := range candidates {
-		if base == c || strings.Contains(base, c) {
-			return true
-		}
-	}
-	return false
+// devLangs is the set of runtimes we consider "dev servers" and show in the UI.
+// Everything else (Native/Unknown — i.e. OS daemons and other compiled apps) is
+// hidden unless a project was detected for it.
+var devLangs = map[model.Lang]bool{
+	model.Node:   true,
+	model.Bun:    true,
+	model.Deno:   true,
+	model.Python: true,
+	model.Java:   true,
+	model.Ruby:   true,
+	model.PHP:    true,
+	model.DotNet: true,
+	model.Go:     true,
+	model.Ollama: true,
 }
+
+// IsDevServer reports whether a runtime belongs to the dev-server allowlist.
+func IsDevServer(l model.Lang) bool { return devLangs[l] }

@@ -1,9 +1,12 @@
 # portman
 
-A tiny **menu-bar / system-tray** app that lists every TCP port currently in
-the `LISTEN` state, shows the **runtime** of each owning process (Node.js,
-Python, Java, Ruby, …), and lets you **kill** a process with one click — no
-manual `kill -9 <pid>`.
+A tiny **menu-bar / system-tray** app that shows your running **dev servers**
+(Node, Bun, Deno, Python, Go, Ruby, PHP, Java, Ollama, …) — with the detected
+**project name** and **framework** — and lets you **kill**, **open**, or
+**reveal** each one in a click. No more hunting for `kill -9 <pid>`.
+
+OS daemons and other non-dev processes are filtered out, so you only see what
+you actually started.
 
 Runs on **macOS** (Intel + Apple Silicon) and **Ubuntu/Linux**. Built in Go for
 a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
@@ -12,23 +15,28 @@ a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 ☰ portman
    Refresh
    ──────────────
-   3000 · Node.js · node          ▸ Kill (SIGTERM)
-   5432 · Native · postgres       ▸ Force kill (SIGKILL)
-   8000 · Python · python3.12     ▸ PID 22808 · CPU 0.3% · 15.8 MB
+   3000 · Next.js · my-shop      ▸ Open in browser
+   5173 · Vite · landing         ▸ Copy URL
+   8000 · FastAPI · billing      ▸ Reveal in Finder
+   11434 · Ollama · ollama       ▸ Kill (SIGTERM)
    ──────────────
-   Quit portman
+   ☐ Start at login   ·   Quit portman
 ```
 
 ## Features
 
-1. Lists all listening TCP ports and their owning process.
-2. Detects the runtime/language of each process.
-3. One-click kill (graceful `SIGTERM`, auto-escalates to `SIGKILL`) plus an
-   explicit force-kill.
-4. Resource-efficient: lazy refresh (15s) + manual **Refresh**, no busy polling.
-5. Easy to extend — per-process CPU% and memory are already shown in each
-   entry's submenu (`internal/proc`).
-6. Small, modular codebase.
+1. Shows only **dev servers** that are listening — Node, Bun, Deno, Python, Go,
+   Ruby, PHP, Java, Ollama and more — hiding OS/system processes.
+2. **Auto-detects the project** from `package.json`, `pyproject.toml`, `go.mod`,
+   `Cargo.toml`, `composer.json`, … (walks up from the process's working dir).
+3. **Identifies the framework**: Next.js, Nuxt, Vite, Remix, Astro, SvelteKit,
+   Angular, Webpack, NestJS, FastAPI, Django, Flask, Rails, Laravel, …
+4. One-click actions per entry: **Open in browser**, **Copy URL**, **Reveal**
+   the project folder, **Kill** (graceful `SIGTERM` → `SIGKILL`) / force-kill.
+5. **Start at login** toggle, right in the menu.
+6. Resource-efficient: lazy refresh (15s) + manual **Refresh**; per-PID metadata
+   cache so manifests aren't re-read every tick.
+7. Small, modular Go codebase.
 
 ## Install
 

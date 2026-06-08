@@ -7,7 +7,9 @@ package tray
 
 import (
 	"fmt"
+	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,9 +29,12 @@ const (
 	refreshInterval = 15 * time.Second
 )
 
-// slot is one reusable menu entry plus its kill submenu.
+// slot is one reusable menu entry plus its action submenu.
 type slot struct {
 	item      *systray.MenuItem
+	open      *systray.MenuItem
+	copyURL   *systray.MenuItem
+	reveal    *systray.MenuItem
 	kill      *systray.MenuItem
 	forceKill *systray.MenuItem
 	details   *systray.MenuItem // disabled; shows PID · CPU · mem
@@ -64,12 +69,20 @@ func (t *Tray) onReady() {
 	refresh := systray.AddMenuItem("Refresh", "Rescan listening ports")
 	systray.AddSeparator()
 
+	revealLabel := "Reveal in Finder"
+	if runtime.GOOS != "darwin" {
+		revealLabel = "Open project folder"
+	}
+
 	t.slots = make([]slot, maxSlots)
 	for i := range t.slots {
 		it := systray.AddMenuItem("", "")
 		it.Hide()
 		s := slot{
 			item:      it,
+			open:      it.AddSubMenuItem("Open in browser", "Open http://localhost:<port>"),
+			copyURL:   it.AddSubMenuItem("Copy URL", "Copy http://localhost:<port> to the clipboard"),
+			reveal:    it.AddSubMenuItem(revealLabel, "Open the project directory"),
 			kill:      it.AddSubMenuItem("Kill (SIGTERM)", "Gracefully terminate, then force kill"),
 			forceKill: it.AddSubMenuItem("Force kill (SIGKILL)", "Kill immediately"),
 			details:   it.AddSubMenuItem("…", "Process details"),
@@ -81,6 +94,12 @@ func (t *Tray) onReady() {
 		go func() {
 			for {
 				select {
+				case <-s.open.ClickedCh:
+					t.handleOpen(idx)
+				case <-s.copyURL.ClickedCh:
+					t.handleCopy(idx)
+				case <-s.reveal.ClickedCh:
+					t.handleReveal(idx)
 				case <-s.kill.ClickedCh:
 					t.handleKill(idx, false)
 				case <-s.forceKill.ClickedCh:
@@ -154,6 +173,38 @@ func (t *Tray) toggleStartup(item *systray.MenuItem) {
 	}
 }
 
+// portAt returns the port currently shown in slot idx, or false if the slot is
+// hidden/stale.
+func (t *Tray) portAt(idx int) (model.ListenPort, bool) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if idx >= len(t.current) {
+		return model.ListenPort{}, false
+	}
+	return t.current[idx], true
+}
+
+func (t *Tray) handleOpen(idx int) {
+	if p, ok := t.portAt(idx); ok {
+		openURL(fmt.Sprintf("http://localhost:%d", p.Port))
+	}
+}
+
+func (t *Tray) handleCopy(idx int) {
+	if p, ok := t.portAt(idx); ok {
+		url := fmt.Sprintf("http://localhost:%d", p.Port)
+		if err := copyText(url); err == nil {
+			systray.SetTooltip("Copied " + url)
+		}
+	}
+}
+
+func (t *Tray) handleReveal(idx int) {
+	if p, ok := t.portAt(idx); ok && p.Cwd != "" {
+		openURL(p.Cwd)
+	}
+}
+
 // handleKill terminates the process shown in slot idx and refreshes the menu.
 func (t *Tray) handleKill(idx int, force bool) {
 	t.mu.Lock()
@@ -188,8 +239,13 @@ func (t *Tray) Refresh() {
 	for i, s := range t.slots {
 		if i < len(list) {
 			p := list[i]
-			s.item.SetTitle(fmt.Sprintf("%d · %s · %s", p.Port, p.Lang, displayName(p.ProcName)))
-			s.details.SetTitle(fmt.Sprintf("PID %d · CPU %.1f%% · %s", p.PID, p.CPU, humanBytes(p.RSS)))
+			s.item.SetTitle(fmt.Sprintf("%d · %s · %s", p.Port, frameworkOrLang(p), projectOrName(p)))
+			s.details.SetTitle(fmt.Sprintf("%s · PID %d · CPU %.1f%% · %s", p.Lang, p.PID, p.CPU, humanBytes(p.RSS)))
+			if p.Cwd != "" {
+				s.reveal.Enable()
+			} else {
+				s.reveal.Disable()
+			}
 			s.item.Show()
 		} else {
 			s.item.Hide()
@@ -208,6 +264,52 @@ func displayName(name string) string {
 		return "unknown"
 	}
 	return name
+}
+
+// frameworkOrLang prefers the detected framework (e.g. "Next.js") and falls
+// back to the runtime label.
+func frameworkOrLang(p model.ListenPort) string {
+	if p.Framework != "" {
+		return p.Framework
+	}
+	return string(p.Lang)
+}
+
+// projectOrName prefers the detected project name and falls back to the process
+// name.
+func projectOrName(p model.ListenPort) string {
+	if p.Project != "" {
+		return p.Project
+	}
+	return displayName(p.ProcName)
+}
+
+// openURL opens a URL or path with the OS default handler.
+func openURL(target string) {
+	var cmd *exec.Cmd
+	if runtime.GOOS == "darwin" {
+		cmd = exec.Command("open", target)
+	} else {
+		cmd = exec.Command("xdg-open", target)
+	}
+	_ = cmd.Start()
+}
+
+// copyText puts s on the system clipboard.
+func copyText(s string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	default:
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			cmd = exec.Command("wl-copy")
+		} else {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		}
+	}
+	cmd.Stdin = strings.NewReader(s)
+	return cmd.Run()
 }
 
 func humanBytes(b uint64) string {

@@ -7,12 +7,15 @@ type Lang string
 
 const (
 	Node    Lang = "Node.js"
+	Bun     Lang = "Bun"
+	Deno    Lang = "Deno"
 	Python  Lang = "Python"
 	Java    Lang = "Java"
 	Ruby    Lang = "Ruby"
 	PHP     Lang = "PHP"
 	DotNet  Lang = ".NET"
 	Go      Lang = "Go"
+	Ollama  Lang = "Ollama"
 	Native  Lang = "Native"
 	Unknown Lang = "Unknown"
 )
@@ -20,10 +23,13 @@ const (
 // ListenPort describes a single TCP port in the LISTEN state together with the
 // process that owns it.
 type ListenPort struct {
-	Port     int    // listening TCP port
-	PID      int32  // owning process id
-	ProcName string // process name (e.g. "node", "python3.12")
-	Lang     Lang   // detected runtime
-	CPU      float64 // CPU percent (since-start average; cheap to read)
-	RSS      uint64 // resident memory in bytes
+	Port      int    // listening TCP port
+	PID       int32  // owning process id
+	ProcName  string // process name (e.g. "node", "python3.12")
+	Lang      Lang   // detected runtime
+	Project   string // detected project name (from package.json/go.mod/...)
+	Framework string // detected framework (e.g. "Next.js", "Vite")
+	Cwd       string // process working directory (powers "Reveal")
+	CPU       float64 // CPU percent (since-start average; cheap to read)
+	RSS       uint64 // resident memory in bytes
 }

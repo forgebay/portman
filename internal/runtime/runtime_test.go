@@ -16,8 +16,10 @@ func TestDetect(t *testing.T) {
 	}{
 		{"node", "node", "/usr/local/bin/node", []string{"node", "server.js"}, model.Node},
 		{"nodejs alias", "nodejs", "", nil, model.Node},
-		{"deno", "deno", "", nil, model.Node},
-		{"bun", "bun", "", nil, model.Node},
+		{"deno", "deno", "", nil, model.Deno},
+		{"bun", "bun", "", nil, model.Bun},
+		{"ollama", "ollama", "/usr/local/bin/ollama", nil, model.Ollama},
+		{"bundle is ruby not bun", "bundle", "", nil, model.Ruby},
 		{"python3", "python3.12", "/usr/bin/python3.12", nil, model.Python},
 		{"uvicorn", "uvicorn", "", nil, model.Python},
 		{"java", "java", "", []string{"java", "-jar", "app.jar"}, model.Java},
@@ -34,5 +36,18 @@ func TestDetect(t *testing.T) {
 				t.Errorf("Detect(%q,%q,%v) = %q, want %q", c.proc, c.exe, c.cmd, got, c.want)
 			}
 		})
+	}
+}
+
+func TestIsDevServer(t *testing.T) {
+	for _, l := range []model.Lang{model.Node, model.Bun, model.Deno, model.Python, model.Go, model.Ollama, model.Ruby, model.PHP, model.Java, model.DotNet} {
+		if !IsDevServer(l) {
+			t.Errorf("IsDevServer(%q) = false, want true", l)
+		}
+	}
+	for _, l := range []model.Lang{model.Native, model.Unknown} {
+		if IsDevServer(l) {
+			t.Errorf("IsDevServer(%q) = true, want false", l)
+		}
 	}
 }
