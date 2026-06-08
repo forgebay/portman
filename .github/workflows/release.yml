@@ -52,6 +52,9 @@ jobs:
               ( cd dist && ditto -c -k --keepParent "Port Manager.app" "PortManager-macos-$arch.zip" )
             fi
           done
+          # Drop the unpacked .app so its internals aren't flattened into the
+          # release as stray assets (icon.icns / Info.plist / portman).
+          rm -rf "dist/Port Manager.app"
 
       - uses: actions/upload-artifact@v4
         with:
