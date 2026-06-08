@@ -1,0 +1,18 @@
+# Build output
+/portman
+/dist/
+*.app/
+*.zip
+*.tar.gz
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+
+# Go
+*.test
+*.out

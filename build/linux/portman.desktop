@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Port Manager
+Comment=List listening ports and kill processes from the system tray
+Exec=portman
+Icon=portman
+Terminal=false
+Categories=Utility;Development;System;
+Keywords=ports;process;kill;tray;
