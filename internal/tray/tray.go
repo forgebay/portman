@@ -13,6 +13,7 @@ import (
 
 	"github.com/getlantern/systray"
 
+	"github.com/lanvu/portman/internal/autostart"
 	"github.com/lanvu/portman/internal/model"
 	"github.com/lanvu/portman/internal/ports"
 	"github.com/lanvu/portman/internal/proc"
@@ -92,6 +93,7 @@ func (t *Tray) onReady() {
 	}
 
 	systray.AddSeparator()
+	startup := systray.AddMenuItemCheckbox("Start at login", "Launch portman automatically when you log in", autostart.IsEnabled())
 	quit := systray.AddMenuItem("Quit portman", "Exit the app")
 
 	go func() {
@@ -99,6 +101,8 @@ func (t *Tray) onReady() {
 			select {
 			case <-refresh.ClickedCh:
 				t.Refresh()
+			case <-startup.ClickedCh:
+				t.toggleStartup(startup)
 			case <-quit.ClickedCh:
 				systray.Quit()
 				return
@@ -128,6 +132,25 @@ func (t *Tray) loop() {
 		case <-t.stop:
 			return
 		}
+	}
+}
+
+// toggleStartup flips launch-at-login and keeps the checkbox in sync with the
+// actual on-disk state (so a failure doesn't leave the UI lying).
+func (t *Tray) toggleStartup(item *systray.MenuItem) {
+	var err error
+	if item.Checked() {
+		err = autostart.Disable()
+	} else {
+		err = autostart.Enable()
+	}
+	if err != nil {
+		systray.SetTooltip("portman: start-at-login failed: " + err.Error())
+	}
+	if autostart.IsEnabled() {
+		item.Check()
+	} else {
+		item.Uncheck()
 	}
 }
 

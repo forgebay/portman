@@ -1,0 +1,40 @@
+{
+  "name": "@avlunvu/portman",
+  "version": "0.1.0",
+  "description": "Lightweight menu-bar/tray app to list listening ports, detect their runtime, and kill processes in one click (macOS + Linux).",
+  "bin": {
+    "portman": "bin/cli.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/postinstall.js"
+  },
+  "files": [
+    "bin/cli.js",
+    "scripts/postinstall.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/avlunvu/lvdtvd-portman.git"
+  },
+  "keywords": [
+    "ports",
+    "tray",
+    "menubar",
+    "kill",
+    "process",
+    "lsof"
+  ],
+  "license": "MIT"
+}

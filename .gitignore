@@ -16,3 +16,8 @@
 # Go
 *.test
 *.out
+
+# npm
+/node_modules/
+# downloaded prebuilt binaries (fetched by postinstall)
+/bin/portman-*

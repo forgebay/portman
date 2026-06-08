@@ -12,15 +12,18 @@ jobs:
   build:
     name: build ${{ matrix.target }}-${{ matrix.goarch }}
     runs-on: ${{ matrix.os }}
+    env:
+      # Resolves to "true" only when the macOS signing secrets are configured.
+      HAS_SIGNING: ${{ secrets.APPLE_CERT_P12_BASE64 != '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-14        # Apple Silicon
-            target: macos
+            target: darwin
             goarch: arm64
           - os: macos-13        # Intel
-            target: macos
+            target: darwin
             goarch: amd64
           - os: ubuntu-latest   # x86_64
             target: linux
@@ -50,24 +53,45 @@ jobs:
           CGO_ENABLED: 1
         run: go build -ldflags "-s -w" -o portman ./cmd/portman
 
-      - name: Package (macOS)
-        if: matrix.target == 'macos'
+      - name: Stage raw binary (consumed by npm & Homebrew)
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp portman "dist/portman-${{ matrix.target }}-${{ matrix.goarch }}"
+
+      - name: Package .app (macOS)
+        if: matrix.target == 'darwin'
         run: bash build/macos/make-bundle.sh ./portman "${{ steps.ver.outputs.version }}"
 
-      - name: Package (Linux)
+      # Sign + notarize only when the Apple secrets are configured; otherwise
+      # the unsigned .app from the previous step ships as-is.
+      - name: Sign & notarize (macOS)
+        if: matrix.target == 'darwin' && env.HAS_SIGNING == 'true'
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          bash build/macos/sign-notarize.sh "dist/Port Manager.app"
+          # Replace the unsigned zip with the signed + stapled bundle.
+          rm -f "dist/PortManager-macos-${{ matrix.goarch }}.zip"
+          ( cd dist && ditto -c -k --keepParent "Port Manager.app" "PortManager-macos-${{ matrix.goarch }}.zip" )
+
+      - name: Package tarball (Linux)
         if: matrix.target == 'linux'
         run: |
           mkdir -p dist/portman
           cp portman assets/icon.png build/linux/portman.desktop build/linux/install.sh dist/portman/
           chmod +x dist/portman/install.sh
-          ( cd dist && tar czf portman-linux-amd64.tar.gz portman )
+          ( cd dist && tar czf portman-linux-amd64.tar.gz portman && rm -rf portman )
 
       - uses: actions/upload-artifact@v4
         with:
-          name: portman-${{ matrix.target }}-${{ matrix.goarch }}
-          path: |
-            dist/*.zip
-            dist/*.tar.gz
+          name: dist-${{ matrix.target }}-${{ matrix.goarch }}
+          path: dist/*
 
   release:
     needs: build
@@ -77,7 +101,13 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Flatten + checksums
+        run: |
+          mkdir -p release
+          find artifacts -type f -exec cp {} release/ \;
+          ( cd release && sha256sum * > checksums.txt )
+          ls -la release
       - uses: softprops/action-gh-release@v2
         with:
-          files: artifacts/**/*
+          files: release/*
           generate_release_notes: true

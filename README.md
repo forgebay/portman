@@ -32,22 +32,44 @@ a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 
 ## Install
 
-Download the asset for your platform from the
-[Releases](../../releases) page.
+### npm (macOS + Linux, one command)
 
-**macOS** — unzip `PortManager-macos-<arch>.zip` and move `Port Manager.app` to
-`/Applications`. The app is unsigned, so on first launch right-click it →
-**Open** to get past Gatekeeper. It appears in the menu bar (no Dock icon).
+```sh
+npm install -g @avlunvu/portman
+portman                 # launches into the menu bar / tray
+```
 
-**Ubuntu/Linux** — extract `portman-linux-amd64.tar.gz` and run
-`./portman/install.sh`. Runtime dependencies:
+`postinstall` downloads the prebuilt binary for your platform from the latest
+release. On Linux, if the tray icon does not appear:
 
 ```sh
 sudo apt-get install -y libgtk-3-0 libayatana-appindicator3-1
 ```
 
-On GNOME, also enable the *AppIndicator and KStatusNotifierItem* extension for
-the tray icon to appear.
+### Homebrew (mainly macOS)
+
+```sh
+brew install avlunvu/tap/portman
+portman
+```
+
+### Manual download
+
+Grab the asset for your platform from the [Releases](../../releases) page:
+
+- **macOS** — unzip `PortManager-macos-<arch>.zip`, move `Port Manager.app` to
+  `/Applications`. Unsigned, so first launch: right-click → **Open**. Lives in
+  the menu bar (no Dock icon).
+- **Ubuntu/Linux** — extract `portman-linux-amd64.tar.gz` and run
+  `./portman/install.sh`. On GNOME, enable the *AppIndicator and
+  KStatusNotifierItem* extension so the tray icon appears.
+
+## Auto-run at login
+
+portman does **not** start automatically after install. To enable it, open the
+tray menu and tick **Start at login** (untick to disable). Under the hood this
+writes a macOS LaunchAgent (`~/Library/LaunchAgents/vn.redsun.portman.plist`)
+or an XDG autostart entry (`~/.config/autostart/portman.desktop`).
 
 ## Build from source
 
