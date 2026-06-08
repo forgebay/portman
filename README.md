@@ -35,7 +35,7 @@ a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 ### npm (macOS + Linux, one command)
 
 ```sh
-npm install -g @avlunvu/portman
+npm install -g @lvdtvd/portman
 portman                 # launches into the menu bar / tray
 ```
 
