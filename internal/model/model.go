@@ -15,6 +15,8 @@ const (
 	PHP     Lang = "PHP"
 	DotNet  Lang = ".NET"
 	Go      Lang = "Go"
+	Rust    Lang = "Rust"
+	Elixir  Lang = "Elixir"
 	Ollama  Lang = "Ollama"
 	Native  Lang = "Native"
 	Unknown Lang = "Unknown"
@@ -30,6 +32,8 @@ type ListenPort struct {
 	Project   string // detected project name (from package.json/go.mod/...)
 	Framework string // detected framework (e.g. "Next.js", "Vite")
 	Cwd       string // process working directory (powers "Reveal")
+	CreatedMs int64  // process start time, ms since epoch (0 if unknown)
+	Alive     bool   // port currently accepts TCP connections (health probe)
 	CPU       float64 // CPU percent (since-start average; cheap to read)
 	RSS       uint64 // resident memory in bytes
 }

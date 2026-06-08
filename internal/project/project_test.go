@@ -76,6 +76,40 @@ func TestDetect_NoManifest_FrameworkStillFromCmd(t *testing.T) {
 	}
 }
 
+func TestDetect_Cargo_Axum(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "Cargo.toml", "[package]\nname = \"edge\"\n\n[dependencies]\naxum = \"0.7\"\n")
+	proj, fw := Detect(dir, []string{"./target/release/edge"})
+	if proj != "edge" || fw != "Axum" {
+		t.Errorf("got (%q,%q), want (edge,Axum)", proj, fw)
+	}
+}
+
+func TestDetect_Phoenix_FromCmd(t *testing.T) {
+	dir := t.TempDir()
+	_, fw := Detect(dir, []string{"/usr/bin/beam.smp", "-mode", "embedded", "phx.server"})
+	if fw != "Phoenix" {
+		t.Errorf("framework = %q, want Phoenix", fw)
+	}
+}
+
+func TestDetect_SpringBoot_FromCmd(t *testing.T) {
+	dir := t.TempDir()
+	_, fw := Detect(dir, []string{"java", "-jar", "app.jar", "--spring-boot.run"})
+	if fw != "Spring Boot" {
+		t.Errorf("framework = %q, want Spring Boot", fw)
+	}
+}
+
+func TestDetect_Gatsby_FromDeps(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "package.json", `{"name":"blog","dependencies":{"gatsby":"5"}}`)
+	proj, fw := Detect(dir, []string{"node", "server.js"})
+	if proj != "blog" || fw != "Gatsby" {
+		t.Errorf("got (%q,%q), want (blog,Gatsby)", proj, fw)
+	}
+}
+
 func TestDetect_EmptyCwd(t *testing.T) {
 	proj, fw := Detect("", nil)
 	if proj != "" || fw != "" {

@@ -34,9 +34,14 @@ func Detect(cwd string, cmd []string) (project, framework string) {
 		project = filepath.Base(dir)
 	}
 
-	// If the command line didn't reveal a framework, try package.json deps.
-	if framework == "" && filepath.Base(manifest) == "package.json" {
-		framework = frameworkFromPackageJSON(manifest)
+	// If the command line didn't reveal a framework, try manifest dependencies.
+	if framework == "" {
+		switch filepath.Base(manifest) {
+		case "package.json":
+			framework = frameworkFromPackageJSON(manifest)
+		case "Cargo.toml":
+			framework = frameworkFromCargo(manifest)
+		}
 	}
 	return project, framework
 }
@@ -126,6 +131,10 @@ func frameworkFromCmd(cmd []string) string {
 		return "Rails"
 	case strings.Contains(joined, "artisan"):
 		return "Laravel"
+	case strings.Contains(joined, "spring-boot") || strings.Contains(joined, "org.springframework") || containsTok(joined, "bootrun"):
+		return "Spring Boot"
+	case strings.Contains(joined, "phx.server") || containsTok(joined, "phoenix"):
+		return "Phoenix"
 	}
 	return ""
 }
@@ -136,6 +145,10 @@ var pkgFrameworks = []struct{ dep, name string }{
 	{"nuxt", "Nuxt"},
 	{"@remix-run/", "Remix"},
 	{"@sveltejs/kit", "SvelteKit"},
+	{"@redwoodjs/", "RedwoodJS"},
+	{"@builder.io/qwik", "Qwik"},
+	{"solid-start", "SolidStart"},
+	{"gatsby", "Gatsby"},
 	{"astro", "Astro"},
 	{"vite", "Vite"},
 	{"@angular/core", "Angular"},
@@ -144,6 +157,30 @@ var pkgFrameworks = []struct{ dep, name string }{
 	{"webpack", "Webpack"},
 	{"fastify", "Fastify"},
 	{"express", "Express"},
+}
+
+// cargoFrameworks maps a Rust crate dependency to a framework label.
+var cargoFrameworks = []struct{ dep, name string }{
+	{"actix-web", "Actix"},
+	{"axum", "Axum"},
+	{"rocket", "Rocket"},
+	{"warp", "Warp"},
+}
+
+// frameworkFromCargo line-scans Cargo.toml for a known web-framework crate.
+func frameworkFromCargo(manifest string) string {
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		return ""
+	}
+	text := string(data)
+	for _, f := range cargoFrameworks {
+		// Match a dependency line like `axum = "0.7"` or `axum = { version = ... }`.
+		if strings.Contains(text, f.dep+" =") || strings.Contains(text, f.dep+"=") {
+			return f.name
+		}
+	}
+	return ""
 }
 
 // frameworkFromPackageJSON reads dependencies + devDependencies and maps them.

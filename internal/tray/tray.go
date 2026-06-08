@@ -16,40 +16,50 @@ import (
 	"github.com/getlantern/systray"
 
 	"github.com/lanvu/portman/internal/autostart"
+	"github.com/lanvu/portman/internal/config"
 	"github.com/lanvu/portman/internal/model"
 	"github.com/lanvu/portman/internal/ports"
 	"github.com/lanvu/portman/internal/proc"
 )
 
-const (
-	// maxSlots caps how many ports the menu can display at once.
-	maxSlots = 64
-	// refreshInterval is the slow background rescan cadence. Kept slow because
-	// on macOS each scan shells out to lsof; manual Refresh covers immediacy.
-	refreshInterval = 15 * time.Second
-)
+// maxSlots caps how many ports the menu can display at once.
+const maxSlots = 64
 
 // slot is one reusable menu entry plus its action submenu.
 type slot struct {
 	item      *systray.MenuItem
+	url       *systray.MenuItem // disabled; shows http://localhost:<port>
 	open      *systray.MenuItem
 	copyURL   *systray.MenuItem
+	editor    *systray.MenuItem
 	reveal    *systray.MenuItem
 	kill      *systray.MenuItem
 	forceKill *systray.MenuItem
-	details   *systray.MenuItem // disabled; shows PID · CPU · mem
+	details   *systray.MenuItem // disabled; shows runtime · PID · uptime · CPU · mem
 }
 
 // Tray is the running tray controller.
 type Tray struct {
-	mu      sync.Mutex
-	slots   []slot
-	current []model.ListenPort // index-aligned with slots; what each slot shows
-	stop    chan struct{}
+	mu        sync.Mutex
+	slots     []slot
+	current   []model.ListenPort // index-aligned with slots; what each slot shows
+	stop      chan struct{}
+	reconfig  chan time.Duration // signals the loop to reset its ticker
+	cfg       config.Config
+	hasEditor bool
+
+	showAllItem   *systray.MenuItem
+	intervalItems map[int]*systray.MenuItem // refresh seconds -> checkbox item
 }
 
 // New returns a Tray ready to be passed to Run.
-func New() *Tray { return &Tray{stop: make(chan struct{})} }
+func New() *Tray {
+	return &Tray{
+		stop:     make(chan struct{}),
+		reconfig: make(chan time.Duration, 1),
+		cfg:      config.Load(),
+	}
+}
 
 // Run starts the tray event loop. It blocks until the user quits and must be
 // called from the main goroutine (a macOS requirement).
@@ -64,14 +74,19 @@ func (t *Tray) onReady() {
 		systray.SetIcon(iconPNG)
 	}
 	systray.SetTitle("")
-	systray.SetTooltip("portman — listening ports")
+	systray.SetTooltip("portman — dev servers")
 
-	refresh := systray.AddMenuItem("Refresh", "Rescan listening ports")
+	refresh := systray.AddMenuItem("Refresh", "Rescan dev servers")
 	systray.AddSeparator()
 
 	revealLabel := "Reveal in Finder"
 	if runtime.GOOS != "darwin" {
 		revealLabel = "Open project folder"
+	}
+	editorBin, editorLabel := editor()
+	t.hasEditor = editorBin != ""
+	if editorLabel == "" {
+		editorLabel = "Open in editor"
 	}
 
 	t.slots = make([]slot, maxSlots)
@@ -80,14 +95,20 @@ func (t *Tray) onReady() {
 		it.Hide()
 		s := slot{
 			item:      it,
+			url:       it.AddSubMenuItem("", ""),
 			open:      it.AddSubMenuItem("Open in browser", "Open http://localhost:<port>"),
 			copyURL:   it.AddSubMenuItem("Copy URL", "Copy http://localhost:<port> to the clipboard"),
+			editor:    it.AddSubMenuItem(editorLabel, "Open the project in your editor"),
 			reveal:    it.AddSubMenuItem(revealLabel, "Open the project directory"),
 			kill:      it.AddSubMenuItem("Kill (SIGTERM)", "Gracefully terminate, then force kill"),
 			forceKill: it.AddSubMenuItem("Force kill (SIGKILL)", "Kill immediately"),
 			details:   it.AddSubMenuItem("…", "Process details"),
 		}
+		s.url.Disable()
 		s.details.Disable()
+		if !t.hasEditor {
+			s.editor.Hide()
+		}
 		t.slots[i] = s
 
 		idx := i // one permanent goroutine per slot; reads the live port at click time
@@ -98,6 +119,8 @@ func (t *Tray) onReady() {
 					t.handleOpen(idx)
 				case <-s.copyURL.ClickedCh:
 					t.handleCopy(idx)
+				case <-s.editor.ClickedCh:
+					t.handleEditor(idx)
 				case <-s.reveal.ClickedCh:
 					t.handleReveal(idx)
 				case <-s.kill.ClickedCh:
@@ -112,6 +135,16 @@ func (t *Tray) onReady() {
 	}
 
 	systray.AddSeparator()
+
+	// Settings submenu: refresh cadence + show-all toggle.
+	settings := systray.AddMenuItem("Settings", "Preferences")
+	i5 := settings.AddSubMenuItemCheckbox("Refresh every 5s", "", t.cfg.RefreshSeconds == 5)
+	i15 := settings.AddSubMenuItemCheckbox("Refresh every 15s", "", t.cfg.RefreshSeconds == 15)
+	i30 := settings.AddSubMenuItemCheckbox("Refresh every 30s", "", t.cfg.RefreshSeconds == 30)
+	showAll := settings.AddSubMenuItemCheckbox("Show all ports", "Include non-dev / system processes", t.cfg.ShowAll)
+	t.intervalItems = map[int]*systray.MenuItem{5: i5, 15: i15, 30: i30}
+	t.showAllItem = showAll
+
 	startup := systray.AddMenuItemCheckbox("Start at login", "Launch portman automatically when you log in", autostart.IsEnabled())
 	quit := systray.AddMenuItem("Quit portman", "Exit the app")
 
@@ -120,6 +153,14 @@ func (t *Tray) onReady() {
 			select {
 			case <-refresh.ClickedCh:
 				t.Refresh()
+			case <-i5.ClickedCh:
+				t.setInterval(5)
+			case <-i15.ClickedCh:
+				t.setInterval(15)
+			case <-i30.ClickedCh:
+				t.setInterval(30)
+			case <-showAll.ClickedCh:
+				t.toggleShowAll()
 			case <-startup.ClickedCh:
 				t.toggleStartup(startup)
 			case <-quit.ClickedCh:
@@ -139,19 +180,62 @@ func (t *Tray) onExit() {
 	close(t.stop)
 }
 
-// loop performs a slow background refresh so the menu stays reasonably current
-// without polling aggressively.
+// loop performs a background refresh on a ticker whose interval can change at
+// runtime (via the Settings submenu) without restarting the loop.
 func (t *Tray) loop() {
-	ticker := time.NewTicker(refreshInterval)
+	t.mu.Lock()
+	d := time.Duration(t.cfg.RefreshSeconds) * time.Second
+	t.mu.Unlock()
+	ticker := time.NewTicker(d)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			t.Refresh()
+		case nd := <-t.reconfig:
+			ticker.Reset(nd)
 		case <-t.stop:
 			return
 		}
 	}
+}
+
+// setInterval changes the refresh cadence, persists it, and resets the ticker.
+func (t *Tray) setInterval(sec int) {
+	t.mu.Lock()
+	t.cfg.RefreshSeconds = sec
+	cfg := t.cfg
+	t.mu.Unlock()
+
+	for s, it := range t.intervalItems {
+		if s == sec {
+			it.Check()
+		} else {
+			it.Uncheck()
+		}
+	}
+	_ = config.Save(cfg)
+	select {
+	case t.reconfig <- time.Duration(sec) * time.Second:
+	default:
+	}
+	t.Refresh()
+}
+
+// toggleShowAll flips the dev-only filter and persists the choice.
+func (t *Tray) toggleShowAll() {
+	t.mu.Lock()
+	t.cfg.ShowAll = !t.cfg.ShowAll
+	cfg := t.cfg
+	t.mu.Unlock()
+
+	if cfg.ShowAll {
+		t.showAllItem.Check()
+	} else {
+		t.showAllItem.Uncheck()
+	}
+	_ = config.Save(cfg)
+	t.Refresh()
 }
 
 // toggleStartup flips launch-at-login and keeps the checkbox in sync with the
@@ -199,6 +283,12 @@ func (t *Tray) handleCopy(idx int) {
 	}
 }
 
+func (t *Tray) handleEditor(idx int) {
+	if p, ok := t.portAt(idx); ok && p.Cwd != "" {
+		openInEditor(p.Cwd)
+	}
+}
+
 func (t *Tray) handleReveal(idx int) {
 	if p, ok := t.portAt(idx); ok && p.Cwd != "" {
 		openURL(p.Cwd)
@@ -207,23 +297,23 @@ func (t *Tray) handleReveal(idx int) {
 
 // handleKill terminates the process shown in slot idx and refreshes the menu.
 func (t *Tray) handleKill(idx int, force bool) {
-	t.mu.Lock()
-	if idx >= len(t.current) {
-		t.mu.Unlock()
-		return // slot is currently hidden / stale
+	p, ok := t.portAt(idx)
+	if !ok {
+		return
 	}
-	p := t.current[idx]
-	t.mu.Unlock()
-
 	if err := proc.Kill(p.PID, force); err != nil {
 		systray.SetTooltip(fmt.Sprintf("Failed to kill %d (%s): %v", p.PID, p.ProcName, err))
 	}
 	t.Refresh()
 }
 
-// Refresh rescans listening ports and updates the slot pool.
+// Refresh rescans dev servers and updates the slot pool.
 func (t *Tray) Refresh() {
-	list, err := ports.List()
+	t.mu.Lock()
+	showAll := t.cfg.ShowAll
+	t.mu.Unlock()
+
+	list, err := ports.List(showAll)
 	if err != nil {
 		systray.SetTooltip("portman: " + err.Error())
 		return
@@ -239,13 +329,13 @@ func (t *Tray) Refresh() {
 	for i, s := range t.slots {
 		if i < len(list) {
 			p := list[i]
-			s.item.SetTitle(fmt.Sprintf("%d · %s · %s", p.Port, frameworkOrLang(p), projectOrName(p)))
-			s.details.SetTitle(fmt.Sprintf("%s · PID %d · CPU %.1f%% · %s", p.Lang, p.PID, p.CPU, humanBytes(p.RSS)))
-			if p.Cwd != "" {
-				s.reveal.Enable()
-			} else {
-				s.reveal.Disable()
-			}
+			s.item.SetTitle(fmt.Sprintf("%s %d · %s %s · %s",
+				healthDot(p.Alive), p.Port, langGlyph(p.Lang), frameworkOrLang(p), projectOrName(p)))
+			s.url.SetTitle(fmt.Sprintf("http://localhost:%d", p.Port))
+			s.details.SetTitle(fmt.Sprintf("%s · PID %d · up %s · CPU %.1f%% · %s",
+				p.Lang, p.PID, humanDuration(p.CreatedMs), p.CPU, humanBytes(p.RSS)))
+			setEnabled(s.reveal, p.Cwd != "")
+			setEnabled(s.editor, t.hasEditor && p.Cwd != "")
 			s.item.Show()
 		} else {
 			s.item.Hide()
@@ -253,9 +343,19 @@ func (t *Tray) Refresh() {
 	}
 
 	if len(list) == 0 {
-		systray.SetTooltip("portman — no listening ports")
+		systray.SetTitle("")
+		systray.SetTooltip("portman — no dev servers")
 	} else {
-		systray.SetTooltip(fmt.Sprintf("portman — %d listening ports", len(list)))
+		systray.SetTitle(fmt.Sprintf(" %d", len(list)))
+		systray.SetTooltip(fmt.Sprintf("portman — %d dev servers", len(list)))
+	}
+}
+
+func setEnabled(item *systray.MenuItem, enabled bool) {
+	if enabled {
+		item.Enable()
+	} else {
+		item.Disable()
 	}
 }
 
@@ -282,6 +382,96 @@ func projectOrName(p model.ListenPort) string {
 		return p.Project
 	}
 	return displayName(p.ProcName)
+}
+
+// langGlyph returns a small emoji for a runtime so rows scan quickly.
+func langGlyph(l model.Lang) string {
+	switch l {
+	case model.Node:
+		return "⬢"
+	case model.Bun:
+		return "🥟"
+	case model.Deno:
+		return "🦕"
+	case model.Python:
+		return "🐍"
+	case model.Go:
+		return "🐹"
+	case model.Rust:
+		return "🦀"
+	case model.Ruby:
+		return "💎"
+	case model.PHP:
+		return "🐘"
+	case model.Java:
+		return "☕"
+	case model.Elixir:
+		return "💧"
+	case model.DotNet:
+		return "🟪"
+	case model.Ollama:
+		return "🦙"
+	default:
+		return "•"
+	}
+}
+
+func healthDot(alive bool) string {
+	if alive {
+		return "🟢"
+	}
+	return "⚪"
+}
+
+// humanDuration formats elapsed time since a ms-epoch start into a compact
+// "12m" / "3h" / "2d" string.
+func humanDuration(createdMs int64) string {
+	if createdMs <= 0 {
+		return "?"
+	}
+	d := time.Since(time.UnixMilli(createdMs))
+	switch {
+	case d < time.Minute:
+		return fmt.Sprintf("%ds", int(d.Seconds()))
+	case d < time.Hour:
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	case d < 24*time.Hour:
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	default:
+		return fmt.Sprintf("%dd", int(d.Hours())/24)
+	}
+}
+
+// editor returns the first available CLI editor binary and its menu label.
+var (
+	editorOnce  sync.Once
+	editorBin   string
+	editorLabel string
+)
+
+func editor() (string, string) {
+	editorOnce.Do(func() {
+		for _, c := range []struct{ bin, label string }{
+			{"code", "Open in VS Code"},
+			{"cursor", "Open in Cursor"},
+			{"subl", "Open in Sublime Text"},
+		} {
+			if _, err := exec.LookPath(c.bin); err == nil {
+				editorBin, editorLabel = c.bin, c.label
+				return
+			}
+		}
+	})
+	return editorBin, editorLabel
+}
+
+// openInEditor opens dir in the detected editor.
+func openInEditor(dir string) {
+	bin, _ := editor()
+	if bin == "" {
+		return
+	}
+	_ = exec.Command(bin, dir).Start()
 }
 
 // openURL opens a URL or path with the OS default handler.

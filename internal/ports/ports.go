@@ -6,11 +6,13 @@ package ports
 
 import (
 	"fmt"
+	"net"
 	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	psnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
@@ -34,6 +36,7 @@ type meta struct {
 	project   string
 	framework string
 	cwd       string
+	createdMs int64
 }
 
 var (
@@ -61,11 +64,12 @@ func filterListening(conns []psnet.ConnectionStat) []listener {
 	return out
 }
 
-// List returns the listening TCP ports that belong to dev servers (Node, Bun,
-// Deno, Python, Go, Ruby, PHP, Java, Ollama, ...), sorted by port. OS/system
-// processes and other non-dev binaries are filtered out. Ports owned by other
-// users (PID 0 without elevation) are skipped upstream by design.
-func List() ([]model.ListenPort, error) {
+// List returns listening TCP ports sorted by port. By default it shows only dev
+// servers (Node, Bun, Deno, Python, Go, Rust, Elixir, Ruby, PHP, Java, .NET,
+// Ollama, ...) and hides OS/system processes; when showAll is true the dev-only
+// filter is skipped. Each result is health-probed (does the port still accept
+// connections?). Ports owned by other users (PID 0) are skipped upstream.
+func List(showAll bool) ([]model.ListenPort, error) {
 	conns, err := psnet.Connections("tcp") // tcp covers both IPv4 and IPv6
 	if err != nil {
 		return nil, fmt.Errorf("listing tcp connections: %w", err)
@@ -77,13 +81,34 @@ func List() ([]model.ListenPort, error) {
 	out := make([]model.ListenPort, 0, len(listeners))
 	for _, l := range listeners {
 		lp := enrich(l)
-		if isDevServerEntry(lp) {
+		if showAll || isDevServerEntry(lp) {
 			out = append(out, lp)
 		}
 	}
 
+	probeHealth(out)
 	sort.Slice(out, func(i, j int) bool { return out[i].Port < out[j].Port })
 	return out, nil
+}
+
+// probeHealth concurrently checks whether each port still accepts TCP
+// connections, setting Alive. Bounded by a short timeout so a refresh never
+// stalls. No payload is sent — a successful connect is enough.
+func probeHealth(ports []model.ListenPort) {
+	var wg sync.WaitGroup
+	for i := range ports {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(ports[i].Port))
+			conn, err := net.DialTimeout("tcp", addr, 300*time.Millisecond)
+			if err == nil {
+				ports[i].Alive = true
+				_ = conn.Close()
+			}
+		}(i)
+	}
+	wg.Wait()
 }
 
 // isDevServerEntry decides whether a listening process is a dev server worth
@@ -118,6 +143,7 @@ func enrich(l listener) model.ListenPort {
 	lp.Project = m.project
 	lp.Framework = m.framework
 	lp.Cwd = m.cwd
+	lp.CreatedMs = m.createdMs
 
 	if cpu, err := p.CPUPercent(); err == nil {
 		lp.CPU = cpu
@@ -143,6 +169,7 @@ func lookupMeta(pid int32, p *process.Process) meta {
 	cmd, _ := p.CmdlineSlice()
 	cwd := processCwd(p)
 	proj, fw := project.Detect(cwd, cmd)
+	created, _ := p.CreateTime() // ms since epoch; 0 on error
 
 	m := meta{
 		name:      name,
@@ -150,6 +177,7 @@ func lookupMeta(pid int32, p *process.Process) meta {
 		project:   proj,
 		framework: fw,
 		cwd:       cwd,
+		createdMs: created,
 	}
 	cacheMu.Lock()
 	cache[pid] = m

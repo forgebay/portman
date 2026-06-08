@@ -12,31 +12,38 @@ Runs on **macOS** (Intel + Apple Silicon) and **Ubuntu/Linux**. Built in Go for
 a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 
 ```
-☰ portman
+⌁ 3   ← live dev-server count on the menu bar
    Refresh
    ──────────────
-   3000 · Next.js · my-shop      ▸ Open in browser
-   5173 · Vite · landing         ▸ Copy URL
-   8000 · FastAPI · billing      ▸ Reveal in Finder
-   11434 · Ollama · ollama       ▸ Kill (SIGTERM)
+   🟢 3000 · ⬢ Next.js · my-shop     ▸ http://localhost:3000
+   🟢 5173 · ⬢ Vite · landing        ▸ Open in browser
+   🟢 8000 · 🐍 FastAPI · billing     ▸ Copy URL · Open in VS Code
+   🟢 11434 · 🦙 Ollama · ollama      ▸ Reveal in Finder · Kill
    ──────────────
+   Settings ▸  (Refresh 5/15/30s · Show all ports)
    ☐ Start at login   ·   Quit portman
 ```
 
 ## Features
 
 1. Shows only **dev servers** that are listening — Node, Bun, Deno, Python, Go,
-   Ruby, PHP, Java, Ollama and more — hiding OS/system processes.
+   Rust, Elixir, Ruby, PHP, Java, .NET, Ollama — hiding OS/system processes.
+   Each row has a **runtime glyph** and a **🟢/⚪ health dot** (does the port
+   still accept connections?), and the menu-bar icon shows a **live count**.
 2. **Auto-detects the project** from `package.json`, `pyproject.toml`, `go.mod`,
    `Cargo.toml`, `composer.json`, … (walks up from the process's working dir).
 3. **Identifies the framework**: Next.js, Nuxt, Vite, Remix, Astro, SvelteKit,
-   Angular, Webpack, NestJS, FastAPI, Django, Flask, Rails, Laravel, …
-4. One-click actions per entry: **Open in browser**, **Copy URL**, **Reveal**
-   the project folder, **Kill** (graceful `SIGTERM` → `SIGKILL`) / force-kill.
-5. **Start at login** toggle, right in the menu.
-6. Resource-efficient: lazy refresh (15s) + manual **Refresh**; per-PID metadata
-   cache so manifests aren't re-read every tick.
-7. Small, modular Go codebase.
+   Gatsby, Qwik, SolidStart, RedwoodJS, Angular, Webpack, NestJS, FastAPI,
+   Django, Flask, Rails, Laravel, Spring Boot, Phoenix, Axum/Actix/Rocket, …
+4. Per-entry actions: **Open in browser**, **Copy URL**, **Open in VS Code**,
+   **Reveal** the project folder, **Kill** (`SIGTERM`→`SIGKILL`) / force-kill;
+   the submenu also shows the full URL plus **uptime**, PID, CPU and memory.
+5. **Settings**: refresh cadence (5/15/30s) and a **Show all ports** escape
+   hatch — persisted to `~/.config/portman/config.json`.
+6. **Start at login** toggle, right in the menu.
+7. Resource-efficient: lazy refresh + manual **Refresh**; per-PID metadata cache
+   so manifests aren't re-read every tick; bounded concurrent health probes.
+8. Small, modular Go codebase.
 
 ## Install
 

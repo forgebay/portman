@@ -40,7 +40,7 @@ func TestFilterListening(t *testing.T) {
 // returns results sorted by port. It does not assert specific ports since the
 // machine state is unknown.
 func TestListSmoke(t *testing.T) {
-	got, err := List()
+	got, err := List(true) // showAll to exercise the path regardless of dev servers
 	if err != nil {
 		t.Fatalf("List() error: %v", err)
 	}

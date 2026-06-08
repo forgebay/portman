@@ -27,6 +27,9 @@ func TestDetect(t *testing.T) {
 		{"puma", "puma", "", nil, model.Ruby},
 		{"php", "php-fpm", "", nil, model.PHP},
 		{"dotnet", "dotnet", "", nil, model.DotNet},
+		{"elixir beam", "beam.smp", "", nil, model.Elixir},
+		{"rust target/release", "myapi", "/Users/x/code/api/target/release/myapi", nil, model.Rust},
+		{"rust target/debug", "myapi", "/Users/x/code/api/target/debug/myapi", nil, model.Rust},
 		{"unknown compiled with no exe", "myserver", "", nil, model.Native},
 		{"empty", "", "", nil, model.Unknown},
 	}
@@ -40,7 +43,7 @@ func TestDetect(t *testing.T) {
 }
 
 func TestIsDevServer(t *testing.T) {
-	for _, l := range []model.Lang{model.Node, model.Bun, model.Deno, model.Python, model.Go, model.Ollama, model.Ruby, model.PHP, model.Java, model.DotNet} {
+	for _, l := range []model.Lang{model.Node, model.Bun, model.Deno, model.Python, model.Go, model.Rust, model.Elixir, model.Ollama, model.Ruby, model.PHP, model.Java, model.DotNet} {
 		if !IsDevServer(l) {
 			t.Errorf("IsDevServer(%q) = false, want true", l)
 		}

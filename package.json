@@ -1,6 +1,6 @@
 {
   "name": "@lvdtvd/portman",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lightweight menu-bar/tray app to list listening ports, detect their runtime, and kill processes in one click (macOS + Linux).",
   "bin": {
     "portman": "bin/cli.js"

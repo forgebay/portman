@@ -45,6 +45,9 @@ func Detect(name, exe string, cmd []string) model.Lang {
 		return model.PHP
 	case base == "dotnet" || base == "mono":
 		return model.DotNet
+	// Elixir/Erlang run on the BEAM VM.
+	case base == "beam.smp" || base == "beam" || base == "erl":
+		return model.Elixir
 	}
 
 	// No interpreter matched: most likely a compiled binary. Try to positively
@@ -54,9 +57,14 @@ func Detect(name, exe string, cmd []string) model.Lang {
 		if _, err := buildinfo.ReadFile(exe); err == nil {
 			return model.Go
 		}
+		// Rust dev binaries run from Cargo's target/ output directory.
+		lexe := strings.ToLower(exe)
+		if strings.Contains(lexe, "/target/release/") || strings.Contains(lexe, "/target/debug/") {
+			return model.Rust
+		}
 	}
 
-	// Unknown compiled binary (Rust, C/C++, statically-linked, etc.).
+	// Unknown compiled binary (C/C++, statically-linked, etc.).
 	if base != "" {
 		return model.Native
 	}
@@ -76,6 +84,8 @@ var devLangs = map[model.Lang]bool{
 	model.PHP:    true,
 	model.DotNet: true,
 	model.Go:     true,
+	model.Rust:   true,
+	model.Elixir: true,
 	model.Ollama: true,
 }
 
