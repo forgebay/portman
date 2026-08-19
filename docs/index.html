@@ -52,11 +52,12 @@
   .cmt { color: var(--muted); }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.25rem; margin: 1.5rem 0; }
   .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: .9rem 1.1rem; margin: 1.25rem 0; font-size: .95rem; }
-  .demo {
-    border: 1px dashed var(--line); border-radius: 10px; background: var(--card);
-    aspect-ratio: 16 / 10; display: grid; place-items: center; text-align: center;
-    color: var(--muted); font-size: .9rem; padding: 1rem; margin: 1.25rem 0;
+  .demo { margin: 1.5rem 0; }
+  .demo video {
+    display: block; width: 100%; height: auto;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--card);
   }
+  .demo figcaption { margin: .6rem 0 0; font-size: .88rem; color: var(--muted); text-align: center; }
   .btn {
     display: inline-block; background: var(--accent); color: var(--accent-fg);
     padding: .6rem 1.1rem; border-radius: 7px; text-decoration: none; font-weight: 600; font-size: .95rem;
@@ -122,12 +123,12 @@ fuser -k 3000/tcp</pre>
     actually started.
   </p>
 
-  <div class="demo">
-    <div>
-      <strong>[ demo GIF goes here ]</strong><br>
-      menu-bar list → project + framework per port → one-click kill
-    </div>
-  </div>
+  <figure class="demo">
+    <video src="portman-demo.mp4" poster="portman-demo.jpg"
+           autoplay loop muted playsinline preload="metadata"
+           aria-label="The portman menu listing six dev servers, each with its port, framework and project name; one is opened to show its URL, PID, uptime, CPU and memory, then killed."></video>
+    <figcaption>Six dev servers, six different projects — and one click to stop any of them.</figcaption>
+  </figure>
 
   <ul>
     <li>Detects Node, Bun, Deno, Python, Go, Rust, Elixir, Ruby, PHP, Java, .NET, Ollama</li>
@@ -250,6 +251,17 @@ portman</pre>
     }
   ]
 }
+</script>
+<script>
+  // A looping autoplay demo is motion the reader did not ask for. When the OS
+  // says "reduce motion", hold on the poster frame and hand over the controls.
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('video[autoplay]').forEach(function (v) {
+      v.removeAttribute('autoplay');
+      v.setAttribute('controls', '');
+      v.pause();
+    });
+  }
 </script>
 </body>
 </html>

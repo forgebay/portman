@@ -11,6 +11,10 @@ you actually started.
 Runs on **macOS** (Intel + Apple Silicon) and **Ubuntu/Linux**. Built in Go for
 a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 
+![portman listing six dev servers by project and framework, then killing one](docs/portman-demo.gif)
+
+*(Full demo and the `lsof` commands it replaces: [forgebay.github.io/portman](https://forgebay.github.io/portman/))*
+
 ```
 ⌁ 3   ← live dev-server count on the menu bar
    Refresh
