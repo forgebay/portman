@@ -8,7 +8,7 @@
 set -euo pipefail
 
 VERSION="${1:?usage: update-formula.sh <version>   e.g. 0.1.0}"
-REPO="avlunvu/lvdtvd-portman"
+REPO="forgebay/portman"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 TMP="$(mktemp -d)"
 OUT="$HERE/portman-${VERSION}.rb"
@@ -43,4 +43,4 @@ sed \
 rm -rf "$TMP"
 echo "Wrote $OUT"
 echo "Next: copy it into your tap repo as Formula/portman.rb and push:"
-echo "  https://github.com/avlunvu/homebrew-tap"
+echo "  https://github.com/forgebay/homebrew-tap"

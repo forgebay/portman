@@ -1,4 +1,4 @@
-module github.com/lanvu/portman
+module github.com/forgebay/portman
 
 go 1.22
 

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lanvu/portman/internal/model"
+	"github.com/forgebay/portman/internal/model"
 )
 
 // Detect maps a process to a runtime. Order matters: interpreters and launchers

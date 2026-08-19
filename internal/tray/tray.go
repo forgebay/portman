@@ -15,11 +15,11 @@ import (
 
 	"github.com/getlantern/systray"
 
-	"github.com/lanvu/portman/internal/autostart"
-	"github.com/lanvu/portman/internal/config"
-	"github.com/lanvu/portman/internal/model"
-	"github.com/lanvu/portman/internal/ports"
-	"github.com/lanvu/portman/internal/proc"
+	"github.com/forgebay/portman/internal/autostart"
+	"github.com/forgebay/portman/internal/config"
+	"github.com/forgebay/portman/internal/model"
+	"github.com/forgebay/portman/internal/ports"
+	"github.com/forgebay/portman/internal/proc"
 )
 
 // maxSlots caps how many ports the menu can display at once.

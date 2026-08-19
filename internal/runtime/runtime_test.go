@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"github.com/lanvu/portman/internal/model"
+	"github.com/forgebay/portman/internal/model"
 )
 
 func TestDetect(t *testing.T) {

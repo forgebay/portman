@@ -13,7 +13,7 @@ const bin = path.join(__dirname, `portman-${PLATFORM}-${ARCH}`);
 
 if (!PLATFORM || !ARCH || !fs.existsSync(bin)) {
   console.error('[portman] Binary not found. Try reinstalling:');
-  console.error('          npm install -g @avlunvu/portman');
+  console.error('          npm install -g @forgebay/portman');
   process.exit(1);
 }
 

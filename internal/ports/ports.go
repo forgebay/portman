@@ -17,9 +17,9 @@ import (
 	psnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 
-	"github.com/lanvu/portman/internal/model"
-	"github.com/lanvu/portman/internal/project"
-	"github.com/lanvu/portman/internal/runtime"
+	"github.com/forgebay/portman/internal/model"
+	"github.com/forgebay/portman/internal/project"
+	"github.com/forgebay/portman/internal/runtime"
 )
 
 // listener is a deduplicated (pid, port) pair in the LISTEN state.

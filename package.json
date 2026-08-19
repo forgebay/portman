@@ -1,5 +1,5 @@
 {
-  "name": "@lvdtvd/portman",
+  "name": "@forgebay/portman",
   "version": "0.3.0",
   "description": "Lightweight menu-bar/tray app to list listening ports, detect their runtime, and kill processes in one click (macOS + Linux).",
   "bin": {
@@ -26,7 +26,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/avlunvu/lvdtvd-portman.git"
+    "url": "git+https://github.com/forgebay/portman.git"
   },
   "keywords": [
     "ports",

@@ -50,7 +50,7 @@ a small footprint: a single binary, a few MB of RAM, and ~0% CPU while idle.
 ### npm (macOS + Linux, one command)
 
 ```sh
-npm install -g @lvdtvd/portman
+npm install -g @forgebay/portman
 portman                 # launches into the menu bar / tray
 ```
 
@@ -64,7 +64,7 @@ sudo apt-get install -y libgtk-3-0 libayatana-appindicator3-1
 ### Homebrew (mainly macOS)
 
 ```sh
-brew install avlunvu/tap/portman
+brew install forgebay/tap/portman
 portman
 ```
 
@@ -83,7 +83,7 @@ Grab the asset for your platform from the [Releases](../../releases) page:
 
 portman does **not** start automatically after install. To enable it, open the
 tray menu and tick **Start at login** (untick to disable). Under the hood this
-writes a macOS LaunchAgent (`~/Library/LaunchAgents/vn.redsun.portman.plist`)
+writes a macOS LaunchAgent (`~/Library/LaunchAgents/vn.forgebay.portman.plist`)
 or an XDG autostart entry (`~/.config/autostart/portman.desktop`).
 
 ## Build from source

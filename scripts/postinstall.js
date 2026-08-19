@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 
-const REPO = 'avlunvu/lvdtvd-portman';
+const REPO = 'forgebay/portman';
 const { version } = require('../package.json');
 
 const PLATFORM = { darwin: 'darwin', linux: 'linux' }[process.platform];

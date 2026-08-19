@@ -9,14 +9,49 @@ import (
 	"path/filepath"
 )
 
-const label = "vn.redsun.portman"
+const label = "vn.forgebay.portman"
 
-func plistPath() (string, error) {
+// legacyLabels are LaunchAgent labels shipped by earlier releases. They are
+// cleaned up on startup so a label change does not leave the user with two
+// login items, both launching portman.
+var legacyLabels = []string{"vn.redsun.portman"}
+
+func agentPath(agentLabel string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, "Library", "LaunchAgents", label+".plist"), nil
+	return filepath.Join(home, "Library", "LaunchAgents", agentLabel+".plist"), nil
+}
+
+func plistPath() (string, error) {
+	return agentPath(label)
+}
+
+// Migrate unloads and deletes LaunchAgents written under a legacy label. If one
+// was present the user had launch-at-login switched on, so it is re-registered
+// under the current label to preserve that setting across the rename.
+func Migrate() error {
+	var hadLegacy bool
+	for _, legacy := range legacyLabels {
+		p, err := agentPath(legacy)
+		if err != nil {
+			return err
+		}
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		hadLegacy = true
+		// Best-effort unload; the agent may not be loaded in this session.
+		_ = exec.Command("launchctl", "unload", p).Run()
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	if !hadLegacy || IsEnabled() {
+		return nil
+	}
+	return Enable()
 }
 
 // IsEnabled reports whether the LaunchAgent plist exists.

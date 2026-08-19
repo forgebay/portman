@@ -68,3 +68,6 @@ Exec=%s
 Terminal=false
 X-GNOME-Autostart-enabled=true
 `
+
+// Migrate is a no-op on Linux: the XDG entry name has never changed.
+func Migrate() error { return nil }

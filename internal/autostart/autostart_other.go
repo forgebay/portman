@@ -10,3 +10,6 @@ func Enable() error { return ErrUnsupported }
 
 // Disable is unsupported on this platform.
 func Disable() error { return ErrUnsupported }
+
+// Migrate is a no-op on platforms without an autostart implementation.
+func Migrate() error { return nil }

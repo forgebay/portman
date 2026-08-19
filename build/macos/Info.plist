@@ -7,7 +7,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>Port Manager</string>
 	<key>CFBundleIdentifier</key>
-	<string>vn.redsun.portman</string>
+	<string>vn.forgebay.portman</string>
 	<key>CFBundleVersion</key>
 	<string>VERSION_PLACEHOLDER</string>
 	<key>CFBundleShortVersionString</key>
