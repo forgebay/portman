@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to find and kill the process using a port (macOS &amp; Linux) — portman</title>
+<meta name="description" content="EADDRINUSE / address already in use: find which process holds port 3000, 8080 or any other port on macOS and Linux, and kill it. Copy-paste commands, plus portman — a menu-bar app that shows which project owns each port.">
+<link rel="canonical" href="https://forgebay.github.io/portman/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Find and kill the process using a port — macOS &amp; Linux">
+<meta property="og:description" content="Copy-paste commands for EADDRINUSE, and a menu-bar app that tells you which project owns each port.">
+<meta property="og:url" content="https://forgebay.github.io/portman/">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --bg: #fbfbfa; --fg: #1a1a19; --muted: #5f5f5c; --line: #e3e2df;
+    --card: #ffffff; --code-bg: #f4f3f1; --accent: #1f6f4a; --accent-fg: #ffffff;
+    --warn-bg: #fdf6e3; --warn-line: #e6d9a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16171a; --fg: #e9e8e4; --muted: #9c9b96; --line: #2c2e33;
+      --card: #1d1f23; --code-bg: #22242a; --accent: #58c896; --accent-fg: #10241a;
+      --warn-bg: #2a2617; --warn-line: #4a422a;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16171a; --fg: #e9e8e4; --muted: #9c9b96; --line: #2c2e33;
+    --card: #1d1f23; --code-bg: #22242a; --accent: #58c896; --accent-fg: #10241a;
+    --warn-bg: #2a2617; --warn-line: #4a422a;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 17px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  }
+  .wrap { max-width: 46rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: clamp(1.7rem, 5vw, 2.5rem); line-height: 1.15; letter-spacing: -0.02em; margin: 0 0 .6rem; }
+  h2 { font-size: 1.35rem; letter-spacing: -0.01em; margin: 3rem 0 .75rem; }
+  h3 { font-size: 1.05rem; margin: 1.75rem 0 .4rem; }
+  p, li { color: var(--fg); }
+  .lede { font-size: 1.12rem; color: var(--muted); margin: 0 0 2rem; }
+  a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: .9rem 1rem; overflow-x: auto; margin: .6rem 0 1rem;
+    font: 14px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .92em; }
+  p code, li code, td code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+  .cmt { color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.25rem; margin: 1.5rem 0; }
+  .note { background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: .9rem 1.1rem; margin: 1.25rem 0; font-size: .95rem; }
+  .demo {
+    border: 1px dashed var(--line); border-radius: 10px; background: var(--card);
+    aspect-ratio: 16 / 10; display: grid; place-items: center; text-align: center;
+    color: var(--muted); font-size: .9rem; padding: 1rem; margin: 1.25rem 0;
+  }
+  .btn {
+    display: inline-block; background: var(--accent); color: var(--accent-fg);
+    padding: .6rem 1.1rem; border-radius: 7px; text-decoration: none; font-weight: 600; font-size: .95rem;
+  }
+  .tbl-scroll { overflow-x: auto; margin: 1rem 0 1.5rem; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; min-width: 30rem; }
+  th, td { text-align: left; padding: .55rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-weight: 600; color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .04em; }
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--line); color: var(--muted); font-size: .88rem; }
+  ul { padding-left: 1.3rem; }
+</style>
+</head>
+<body>
+<main class="wrap">
+
+  <h1>Something is already using that port.</h1>
+  <p class="lede">
+    <code>EADDRINUSE: address already in use :::3000</code> — here is how to find what
+    holds the port and stop it, on macOS and Linux. No install required.
+  </p>
+
+  <h2>Find it</h2>
+  <pre><span class="cmt"># macOS and Linux — what is listening on port 3000</span>
+lsof -i :3000
+
+<span class="cmt"># Linux, without lsof</span>
+ss -ltnp | grep ':3000'</pre>
+
+  <h3>Kill it</h3>
+  <pre><span class="cmt"># ask it to shut down cleanly first (SIGTERM)</span>
+kill -15 &lt;PID&gt;
+
+<span class="cmt"># still there? force it (SIGKILL)</span>
+kill -9 &lt;PID&gt;
+
+<span class="cmt"># one-liner, macOS and Linux</span>
+kill -9 $(lsof -ti tcp:3000)
+
+<span class="cmt"># Linux alternative</span>
+fuser -k 3000/tcp</pre>
+
+  <div class="note">
+    <strong>Prefer <code>-15</code> over <code>-9</code>.</strong> <code>SIGTERM</code> lets the
+    process flush writes and close database connections. <code>SIGKILL</code> gives it no chance —
+    reach for it only when the polite signal is ignored.
+  </div>
+
+  <h2>The command answers the wrong question</h2>
+  <p>
+    <code>lsof</code> hands you a PID and a binary name. With six dev servers running, that
+    reads as <code>node&nbsp;41233</code>, <code>node&nbsp;41871</code>, <code>node&nbsp;42104</code> —
+    and none of them tells you <em>which project</em> you are about to kill.
+  </p>
+  <p>
+    That is the part worth automating: not the killing, the <strong>identifying</strong>.
+  </p>
+
+  <h2>portman</h2>
+  <p>
+    A menu-bar (macOS) or system-tray (Linux) app that lists only your dev servers — with the
+    detected <strong>project name</strong> and <strong>framework</strong> — and lets you open,
+    copy, reveal or kill each one in a click. OS daemons are filtered out, so you see what you
+    actually started.
+  </p>
+
+  <div class="demo">
+    <div>
+      <strong>[ demo GIF goes here ]</strong><br>
+      menu-bar list → project + framework per port → one-click kill
+    </div>
+  </div>
+
+  <ul>
+    <li>Detects Node, Bun, Deno, Python, Go, Rust, Elixir, Ruby, PHP, Java, .NET, Ollama</li>
+    <li>Reads the project name from <code>package.json</code>, <code>pyproject.toml</code>,
+        <code>go.mod</code>, <code>Cargo.toml</code>, <code>composer.json</code></li>
+    <li>Names the framework: Next.js, Nuxt, Vite, Remix, Astro, SvelteKit, Angular, NestJS,
+        FastAPI, Django, Flask, Rails, Laravel, Spring Boot, Phoenix, Axum</li>
+    <li>Per entry: uptime, PID, CPU, memory, and a health dot — does the port still accept
+        connections?</li>
+    <li>One static Go binary, a few MB of RAM, ~0% CPU idle. Nothing leaves your machine.</li>
+  </ul>
+
+  <h2>Install</h2>
+
+  <h3>Linux and macOS — npm</h3>
+  <pre>npm install -g @lvdtvd/portman
+portman</pre>
+  <p style="font-size:.93rem;color:var(--muted)">
+    On Linux, if the tray icon does not appear:
+    <code>sudo apt-get install -y libgtk-3-0 libayatana-appindicator3-1</code>
+  </p>
+
+  <h3>Homebrew</h3>
+  <pre>brew install forgebay/tap/portman
+portman</pre>
+
+  <h3>Manual</h3>
+  <p>
+    Grab a binary from the
+    <a href="https://github.com/forgebay/portman/releases">releases page</a>.
+    On Linux, extract and run <code>./portman/install.sh</code>; on GNOME, enable the
+    <em>AppIndicator and KStatusNotifierItem</em> extension so the tray icon shows.
+  </p>
+
+  <div class="note">
+    <strong>macOS: the app is not code-signed yet.</strong> The first launch is blocked by
+    Gatekeeper — right-click the app and choose <strong>Open</strong> to get the "open anyway"
+    prompt. A signed build needs a paid Apple Developer account; it is not in place yet, and
+    saying so is more useful than letting you hit a dead end.
+  </div>
+
+  <p><a class="btn" href="https://github.com/forgebay/portman">Source on GitHub</a></p>
+
+  <h2>Honest alternatives</h2>
+  <p>
+    Several apps solve this, most of them free. If one fits you better, use it — the list is
+    here so you do not have to go find it.
+  </p>
+  <div class="tbl-scroll">
+  <table>
+    <thead><tr><th>App</th><th>Platform</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Ports (BigLittleApps)</td><td>macOS 14+</td><td>Free, native SwiftUI. Closest match feature-for-feature.</td></tr>
+      <tr><td>PortWatcher</td><td>macOS</td><td>Free. SIGTERM then SIGKILL fallback.</td></tr>
+      <tr><td>PortKiller</td><td>macOS</td><td>Free.</td></tr>
+      <tr><td>devglow</td><td>macOS</td><td>Free. Also runs your commands, ships an MCP server for AI coding tools.</td></tr>
+      <tr><td>Port Collision Radar</td><td>macOS</td><td>Free. Watches for a port being taken over.</td></tr>
+      <tr><td><strong>portman</strong></td><td><strong>macOS + Linux</strong></td><td>Free, MIT. The only one here that runs on Linux; single Go binary.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p style="font-size:.93rem;color:var(--muted)">
+    So: on macOS you have good free choices. On Linux, portman is the option.
+  </p>
+
+  <h2>FAQ</h2>
+
+  <h3>Why does the port stay busy after I stop the server?</h3>
+  <p>
+    Usually the parent process died but a child kept the socket, or the socket sits in
+    <code>TIME_WAIT</code>. <code>lsof -i :3000</code> shows the difference: a live
+    <code>LISTEN</code> owner has a PID you can kill, whereas <code>TIME_WAIT</code> clears on
+    its own within a couple of minutes.
+  </p>
+
+  <h3>Can I kill a port owned by another user?</h3>
+  <p>
+    Not without elevation. Ports owned by other users or by the system report no PID unless you
+    are root, so portman hides them — it manages your own processes.
+  </p>
+
+  <h3>Does it phone home?</h3>
+  <p>No network calls, no telemetry, no accounts. It reads local process state and that is all.</p>
+
+  <h3>Windows?</h3>
+  <p>
+    Not supported. For now: <code>netstat -ano | findstr :3000</code> then
+    <code>taskkill /PID &lt;pid&gt; /F</code>.
+  </p>
+
+  <footer>
+    <p>
+      portman — built by <strong>forgebay</strong>. MIT licensed.
+      <a href="https://github.com/forgebay/portman">GitHub</a> ·
+      <a href="https://github.com/forgebay/portman/issues">Report an issue</a>
+    </p>
+  </footer>
+
+</main>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I find which process is using port 3000?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Run lsof -i :3000 on macOS or Linux. On Linux without lsof, use ss -ltnp | grep ':3000'." }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I kill the process using a port?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Send SIGTERM first with kill -15 <PID>, and only force it with kill -9 <PID> if it is ignored. As a one-liner: kill -9 $(lsof -ti tcp:3000). On Linux, fuser -k 3000/tcp also works." }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does a port stay busy after the server stops?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Either a child process still holds the socket, or the socket is in TIME_WAIT. A live LISTEN owner has a PID you can kill; TIME_WAIT clears by itself in a couple of minutes." }
+    }
+  ]
+}
+</script>
+</body>
+</html>
