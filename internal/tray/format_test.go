@@ -29,9 +29,27 @@ func TestRowTitle(t *testing.T) {
 			want: "🟢 5000 · 🐍 Flask · python3",
 		},
 		{
-			name: "nothing to name it by",
+			name: "nothing to name it by — the runtime is not repeated",
 			in:   model.ListenPort{Port: 9999, Lang: model.Unknown, Alive: false},
-			want: "⚪ 9999 · • Unknown · unknown",
+			want: "⚪ 9999 · • Unknown",
+		},
+		{
+			// Observed: a plain node server with no manifest rendered as
+			// "Node.js · node", and macOS reports the framework python3 process
+			// as "Python", giving "Python · Python".
+			name: "plain node server with no project",
+			in:   model.ListenPort{Port: 4321, Lang: model.Node, ProcName: "node", Alive: true},
+			want: "🟢 4321 · ⬢ Node.js",
+		},
+		{
+			name: "plain python server with no project",
+			in:   model.ListenPort{Port: 4322, Lang: model.Python, ProcName: "Python", Alive: true},
+			want: "🟢 4322 · 🐍 Python",
+		},
+		{
+			name: "a project name that happens to match the runtime is not doubled",
+			in:   model.ListenPort{Port: 7000, Lang: model.Go, Project: "go", Alive: true},
+			want: "🟢 7000 · 🐹 Go",
 		},
 		{
 			name: "a port that stopped answering gets the hollow dot",

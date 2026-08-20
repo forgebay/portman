@@ -5,6 +5,7 @@ package tray
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/forgebay/portman/internal/model"
@@ -12,9 +13,18 @@ import (
 
 // rowTitle renders a top-level menu row, e.g.
 // "🟢 3000 · ⬢ Next.js · acme-storefront".
+//
+// When neither a framework nor a project was detected, both halves fall back to
+// the runtime and the row says the same thing twice — "Python · Python" for a
+// plain python3 server, which reads as a rendering fault rather than as missing
+// information. In that case the row carries the runtime once.
 func rowTitle(p model.ListenPort) string {
+	left, right := frameworkOrLang(p), projectOrName(p)
+	if strings.EqualFold(left, right) || (p.Framework == "" && p.Project == "") {
+		return fmt.Sprintf("%s %d · %s %s", healthDot(p.Alive), p.Port, langGlyph(p.Lang), left)
+	}
 	return fmt.Sprintf("%s %d · %s %s · %s",
-		healthDot(p.Alive), p.Port, langGlyph(p.Lang), frameworkOrLang(p), projectOrName(p))
+		healthDot(p.Alive), p.Port, langGlyph(p.Lang), left, right)
 }
 
 // rowDetails renders the disabled detail line inside a row's submenu, e.g.
