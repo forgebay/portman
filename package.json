@@ -1,6 +1,6 @@
 {
   "name": "@forgebay/portman",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Lightweight menu-bar/tray app to list listening ports, detect their runtime, and kill processes in one click (macOS + Linux).",
   "bin": {
     "portman": "bin/cli.js"
