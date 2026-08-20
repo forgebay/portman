@@ -16,6 +16,13 @@ const label = "vn.forgebay.portman"
 // login items, both launching portman.
 var legacyLabels = []string{"vn.redsun.portman"}
 
+// runLaunchctl shells out to launchctl. It is a package variable so tests can
+// swap it out: the real thing would register a LaunchAgent on the machine
+// running the test.
+var runLaunchctl = func(args ...string) error {
+	return exec.Command("launchctl", args...).Run()
+}
+
 func agentPath(agentLabel string) (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -43,7 +50,7 @@ func Migrate() error {
 		}
 		hadLegacy = true
 		// Best-effort unload; the agent may not be loaded in this session.
-		_ = exec.Command("launchctl", "unload", p).Run()
+		_ = runLaunchctl("unload", p)
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -84,8 +91,8 @@ func Enable() error {
 		return err
 	}
 	// Best-effort load; ignore errors (e.g. already loaded).
-	_ = exec.Command("launchctl", "unload", p).Run()
-	_ = exec.Command("launchctl", "load", p).Run()
+	_ = runLaunchctl("unload", p)
+	_ = runLaunchctl("load", p)
 	return nil
 }
 
@@ -95,7 +102,7 @@ func Disable() error {
 	if err != nil {
 		return err
 	}
-	_ = exec.Command("launchctl", "unload", p).Run()
+	_ = runLaunchctl("unload", p)
 	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 		return err
 	}
