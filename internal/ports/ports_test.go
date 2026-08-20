@@ -19,7 +19,7 @@ func TestFilterListening(t *testing.T) {
 		conn("LISTEN", 100, 3000),
 		conn("LISTEN", 100, 3000), // IPv6 duplicate of the same proc+port
 		conn("ESTABLISHED", 100, 51000),
-		conn("LISTEN", 0, 5432),  // system socket, PID hidden -> dropped
+		conn("LISTEN", 0, 5432), // system socket, PID hidden -> dropped
 		conn("LISTEN", 200, 8000),
 	}
 

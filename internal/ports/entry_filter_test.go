@@ -31,6 +31,21 @@ func TestIsDevServerEntry(t *testing.T) {
 			want: true,
 		},
 		{
+			// Observed on macOS 27: the framework Python's real binary sits
+			// inside Python.app, so an ".app/Contents/" match alone hid every
+			// Python dev server on the machine.
+			name: "macOS framework Python is a runtime, not an installed app",
+			in: model.ListenPort{Lang: model.Python, Exe: "/Library/Developer/CommandLineTools/Library/" +
+				"Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python"},
+			want: true,
+		},
+		{
+			name: "Xcode-provided Python framework",
+			in: model.ListenPort{Lang: model.Python, Exe: "/Applications/Xcode.app/Contents/Developer/Library/" +
+				"Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python"},
+			want: true,
+		},
+		{
 			name: "compiled binary from a project directory",
 			in:   model.ListenPort{Lang: model.Go, Exe: "/Users/x/code/inventory-api/bin/inventory-api"},
 			want: true,

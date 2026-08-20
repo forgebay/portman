@@ -153,9 +153,16 @@ func belongsToPackagedApp(exe string) bool {
 		return false
 	}
 	e := strings.ToLower(exe)
-	// A runtime vendored into a project — node_modules/electron ships a whole
-	// Electron.app — belongs to the app the user is building, so it stays.
-	if strings.Contains(e, "/node_modules/") {
+	// Two kinds of path contain an .app bundle without being an installed
+	// application, and both must stay visible:
+	//
+	//   - a runtime vendored into a project (node_modules/electron ships a
+	//     whole Electron.app) belongs to the app the user is building;
+	//   - a runtime shipped as a framework puts its real binary inside an .app
+	//     bundle. macOS Python lives at
+	//     …/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python,
+	//     so matching ".app/contents/" alone hid every Python dev server.
+	if strings.Contains(e, "/node_modules/") || strings.Contains(e, ".framework/") {
 		return false
 	}
 	for _, marker := range packagedAppMarkers {
