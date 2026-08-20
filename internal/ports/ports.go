@@ -37,6 +37,7 @@ type meta struct {
 	framework string
 	cwd       string
 	createdMs int64
+	exe       string // absolute path to the executable
 }
 
 var (
@@ -112,18 +113,57 @@ func probeHealth(ports []model.ListenPort) {
 }
 
 // isDevServerEntry decides whether a listening process is a dev server worth
-// showing. We keep it strict to hide OS daemons AND app-embedded runtimes
-// (e.g. Electron's node, Postman's Go engine, which run with no project):
+// showing.
 //
-//   - standalone dev services recognised by name (Ollama) always show;
-//   - otherwise the runtime must be a dev runtime AND look like a real project
-//     (a project name or framework was detected from its working directory).
+// This used to also require that a project or framework had been detected. That
+// hid real dev servers: a server started from a directory with no manifest, or
+// one whose working directory could not be read, vanished from the list — so
+// the menu came up empty while a server was plainly running, which reads as a
+// broken app rather than a filter doing its job.
+//
+// The runtime allowlist already excludes OS daemons written in C and friends.
+// What is left to exclude is runtimes bundled inside a packaged application,
+// and that is a question about where the executable lives, not about whether a
+// manifest happened to be nearby.
 func isDevServerEntry(lp model.ListenPort) bool {
-	switch lp.Lang {
-	case model.Ollama:
+	if lp.Lang == model.Ollama {
 		return true
 	}
-	return runtime.IsDevServer(lp.Lang) && (lp.Project != "" || lp.Framework != "")
+	if !runtime.IsDevServer(lp.Lang) {
+		return false
+	}
+	return !belongsToPackagedApp(lp.Exe)
+}
+
+// packagedAppMarkers are path fragments that mean the executable ships inside
+// an installed application or the OS, not somewhere a developer starts a server
+// from. Electron apps and tools like Postman carry their own Node or Go runtime
+// and open local ports; those are not the user's dev servers.
+var packagedAppMarkers = []string{
+	".app/contents/",    // macOS application bundle
+	"/snap/",            // Linux snap
+	"/var/lib/flatpak/", // Linux flatpak
+	"/system/library/",  // macOS system frameworks and daemons
+	"/usr/libexec/",
+	"/usr/sbin/",
+}
+
+func belongsToPackagedApp(exe string) bool {
+	if exe == "" {
+		return false
+	}
+	e := strings.ToLower(exe)
+	// A runtime vendored into a project — node_modules/electron ships a whole
+	// Electron.app — belongs to the app the user is building, so it stays.
+	if strings.Contains(e, "/node_modules/") {
+		return false
+	}
+	for _, marker := range packagedAppMarkers {
+		if strings.Contains(e, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // enrich attaches process metadata to a listener. The static parts (name,
@@ -139,6 +179,7 @@ func enrich(l listener) model.ListenPort {
 
 	m := lookupMeta(l.PID, p)
 	lp.ProcName = m.name
+	lp.Exe = m.exe
 	lp.Lang = m.lang
 	lp.Project = m.project
 	lp.Framework = m.framework
@@ -173,6 +214,7 @@ func lookupMeta(pid int32, p *process.Process) meta {
 
 	m := meta{
 		name:      name,
+		exe:       exe,
 		lang:      runtime.Detect(name, exe, cmd),
 		project:   proj,
 		framework: fw,
