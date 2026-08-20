@@ -7,9 +7,7 @@ package tray
 
 import (
 	"fmt"
-	"os/exec"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -318,9 +316,7 @@ func (t *Tray) Refresh() {
 		systray.SetTooltip("portman: " + err.Error())
 		return
 	}
-	if len(list) > maxSlots {
-		list = list[:maxSlots]
-	}
+	list = capPorts(list, maxSlots)
 
 	t.mu.Lock()
 	t.current = list
@@ -329,11 +325,9 @@ func (t *Tray) Refresh() {
 	for i, s := range t.slots {
 		if i < len(list) {
 			p := list[i]
-			s.item.SetTitle(fmt.Sprintf("%s %d · %s %s · %s",
-				healthDot(p.Alive), p.Port, langGlyph(p.Lang), frameworkOrLang(p), projectOrName(p)))
+			s.item.SetTitle(rowTitle(p))
 			s.url.SetTitle(fmt.Sprintf("http://localhost:%d", p.Port))
-			s.details.SetTitle(fmt.Sprintf("%s · PID %d · up %s · CPU %.1f%% · %s",
-				p.Lang, p.PID, humanDuration(p.CreatedMs), p.CPU, humanBytes(p.RSS)))
+			s.details.SetTitle(rowDetails(p, time.Now()))
 			setEnabled(s.reveal, p.Cwd != "")
 			setEnabled(s.editor, t.hasEditor && p.Cwd != "")
 			s.item.Show()
@@ -342,13 +336,8 @@ func (t *Tray) Refresh() {
 		}
 	}
 
-	if len(list) == 0 {
-		systray.SetTitle("")
-		systray.SetTooltip("portman — no dev servers")
-	} else {
-		systray.SetTitle(fmt.Sprintf(" %d", len(list)))
-		systray.SetTooltip(fmt.Sprintf("portman — %d dev servers", len(list)))
-	}
+	systray.SetTitle(trayTitle(len(list)))
+	systray.SetTooltip(trayTooltip(len(list)))
 }
 
 func setEnabled(item *systray.MenuItem, enabled bool) {
@@ -357,160 +346,4 @@ func setEnabled(item *systray.MenuItem, enabled bool) {
 	} else {
 		item.Disable()
 	}
-}
-
-func displayName(name string) string {
-	if name == "" {
-		return "unknown"
-	}
-	return name
-}
-
-// frameworkOrLang prefers the detected framework (e.g. "Next.js") and falls
-// back to the runtime label.
-func frameworkOrLang(p model.ListenPort) string {
-	if p.Framework != "" {
-		return p.Framework
-	}
-	return string(p.Lang)
-}
-
-// projectOrName prefers the detected project name and falls back to the process
-// name.
-func projectOrName(p model.ListenPort) string {
-	if p.Project != "" {
-		return p.Project
-	}
-	return displayName(p.ProcName)
-}
-
-// langGlyph returns a small emoji for a runtime so rows scan quickly.
-func langGlyph(l model.Lang) string {
-	switch l {
-	case model.Node:
-		return "⬢"
-	case model.Bun:
-		return "🥟"
-	case model.Deno:
-		return "🦕"
-	case model.Python:
-		return "🐍"
-	case model.Go:
-		return "🐹"
-	case model.Rust:
-		return "🦀"
-	case model.Ruby:
-		return "💎"
-	case model.PHP:
-		return "🐘"
-	case model.Java:
-		return "☕"
-	case model.Elixir:
-		return "💧"
-	case model.DotNet:
-		return "🟪"
-	case model.Ollama:
-		return "🦙"
-	default:
-		return "•"
-	}
-}
-
-func healthDot(alive bool) string {
-	if alive {
-		return "🟢"
-	}
-	return "⚪"
-}
-
-// humanDuration formats elapsed time since a ms-epoch start into a compact
-// "12m" / "3h" / "2d" string.
-func humanDuration(createdMs int64) string {
-	if createdMs <= 0 {
-		return "?"
-	}
-	d := time.Since(time.UnixMilli(createdMs))
-	switch {
-	case d < time.Minute:
-		return fmt.Sprintf("%ds", int(d.Seconds()))
-	case d < time.Hour:
-		return fmt.Sprintf("%dm", int(d.Minutes()))
-	case d < 24*time.Hour:
-		return fmt.Sprintf("%dh", int(d.Hours()))
-	default:
-		return fmt.Sprintf("%dd", int(d.Hours())/24)
-	}
-}
-
-// editor returns the first available CLI editor binary and its menu label.
-var (
-	editorOnce  sync.Once
-	editorBin   string
-	editorLabel string
-)
-
-func editor() (string, string) {
-	editorOnce.Do(func() {
-		for _, c := range []struct{ bin, label string }{
-			{"code", "Open in VS Code"},
-			{"cursor", "Open in Cursor"},
-			{"subl", "Open in Sublime Text"},
-		} {
-			if _, err := exec.LookPath(c.bin); err == nil {
-				editorBin, editorLabel = c.bin, c.label
-				return
-			}
-		}
-	})
-	return editorBin, editorLabel
-}
-
-// openInEditor opens dir in the detected editor.
-func openInEditor(dir string) {
-	bin, _ := editor()
-	if bin == "" {
-		return
-	}
-	_ = exec.Command(bin, dir).Start()
-}
-
-// openURL opens a URL or path with the OS default handler.
-func openURL(target string) {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "darwin" {
-		cmd = exec.Command("open", target)
-	} else {
-		cmd = exec.Command("xdg-open", target)
-	}
-	_ = cmd.Start()
-}
-
-// copyText puts s on the system clipboard.
-func copyText(s string) error {
-	var cmd *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		cmd = exec.Command("pbcopy")
-	default:
-		if _, err := exec.LookPath("wl-copy"); err == nil {
-			cmd = exec.Command("wl-copy")
-		} else {
-			cmd = exec.Command("xclip", "-selection", "clipboard")
-		}
-	}
-	cmd.Stdin = strings.NewReader(s)
-	return cmd.Run()
-}
-
-func humanBytes(b uint64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := uint64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
