@@ -66,6 +66,13 @@ sudo apt-get install -y libgtk-3-0 libayatana-appindicator3-1
 ```
 
 
+### Homebrew (macOS)
+
+```sh
+brew install forgebay/tap/portman
+portman
+```
+
 ### Manual download
 
 Grab the asset for your platform from the [Releases](../../releases) page:
