@@ -65,12 +65,6 @@ release. On Linux, if the tray icon does not appear:
 sudo apt-get install -y libgtk-3-0 libayatana-appindicator3-1
 ```
 
-### Homebrew (mainly macOS)
-
-```sh
-brew install forgebay/tap/portman
-portman
-```
 
 ### Manual download
 
