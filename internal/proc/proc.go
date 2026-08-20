@@ -40,12 +40,36 @@ func Kill(pid int32, force bool) error {
 
 	deadline := time.Now().Add(terminateGrace)
 	for time.Now().Before(deadline) {
-		if running, _ := p.IsRunning(); !running {
+		if hasExited(p) {
 			return nil
 		}
 		time.Sleep(150 * time.Millisecond)
 	}
 	return p.Kill() // escalate
+}
+
+// hasExited reports whether the process is finished.
+//
+// A zombie counts as finished: it has already exited and only lingers in the
+// process table until its parent reaps it. IsRunning still reports true for
+// one, so checking it alone makes every kill of a not-yet-reaped child wait out
+// terminateGrace and then send a pointless SIGKILL — three seconds of a frozen
+// menu for a server that died instantly.
+func hasExited(p *process.Process) bool {
+	running, err := p.IsRunning()
+	if err != nil || !running {
+		return true
+	}
+	statuses, err := p.Status()
+	if err != nil {
+		return false
+	}
+	for _, s := range statuses {
+		if s == process.Zombie {
+			return true
+		}
+	}
+	return false
 }
 
 // Read returns the current CPU and memory usage for a pid. It uses the cheap,
