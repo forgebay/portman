@@ -21,3 +21,6 @@
 /node_modules/
 # downloaded prebuilt binaries (fetched by postinstall)
 /bin/portman-*
+
+# formula sinh ra bởi packaging/homebrew/update-formula.sh
+packaging/homebrew/portman-*.rb
