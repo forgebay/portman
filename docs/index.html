@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>How to find and kill the process using a port (macOS &amp; Linux) — portman</title>
-<meta name="description" content="EADDRINUSE / address already in use: find which process holds port 3000, 8080 or any other port on macOS and Linux, and kill it. Copy-paste commands, plus portman — a menu-bar app that shows which project owns each port.">
+<title>Which project is using port 3000? — portman</title>
+<meta name="description" content="A menu-bar app for macOS and Linux that lists the dev servers running on localhost with the project and framework behind each one, and kills any of them in one click.">
 <meta name="google-site-verification" content="b7QZEKiE05_Aeank49vdGq3swP92UxIVmpTE39MM5H0" />
 <link rel="canonical" href="https://forgebay.github.io/portman/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Find and kill the process using a port — macOS &amp; Linux">
-<meta property="og:description" content="Copy-paste commands for EADDRINUSE, and a menu-bar app that tells you which project owns each port.">
+<meta property="og:title" content="Which project is using port 3000?">
+<meta property="og:description" content="See every dev server on localhost with the project and framework behind it. macOS + Linux, one Go binary.">
 <meta property="og:url" content="https://forgebay.github.io/portman/">
 <meta name="twitter:card" content="summary_large_image">
 <style>
@@ -73,50 +73,14 @@
 </head>
 <body>
 <main class="wrap">
-
-  <h1>Something is already using that port.</h1>
+  <h1>Which project is using port 3000?</h1>
   <p class="lede">
-    <code>EADDRINUSE: address already in use :::3000</code> — here is how to find what
-    holds the port and stop it, on macOS and Linux. No install required.
+    <code>lsof</code> hands you a PID and a binary name. With six dev servers running that
+    reads as <code>node&nbsp;41233</code>, <code>node&nbsp;41871</code>,
+    <code>node&nbsp;42104</code> — and none of them tells you which project you are about
+    to kill. portman does.
   </p>
 
-  <h2>Find it</h2>
-  <pre><span class="cmt"># macOS and Linux — what is listening on port 3000</span>
-lsof -i :3000
-
-<span class="cmt"># Linux, without lsof</span>
-ss -ltnp | grep ':3000'</pre>
-
-  <h3>Kill it</h3>
-  <pre><span class="cmt"># ask it to shut down cleanly first (SIGTERM)</span>
-kill -15 &lt;PID&gt;
-
-<span class="cmt"># still there? force it (SIGKILL)</span>
-kill -9 &lt;PID&gt;
-
-<span class="cmt"># one-liner, macOS and Linux</span>
-kill -9 $(lsof -ti tcp:3000)
-
-<span class="cmt"># Linux alternative</span>
-fuser -k 3000/tcp</pre>
-
-  <div class="note">
-    <strong>Prefer <code>-15</code> over <code>-9</code>.</strong> <code>SIGTERM</code> lets the
-    process flush writes and close database connections. <code>SIGKILL</code> gives it no chance —
-    reach for it only when the polite signal is ignored.
-  </div>
-
-  <h2>The command answers the wrong question</h2>
-  <p>
-    <code>lsof</code> hands you a PID and a binary name. With six dev servers running, that
-    reads as <code>node&nbsp;41233</code>, <code>node&nbsp;41871</code>, <code>node&nbsp;42104</code> —
-    and none of them tells you <em>which project</em> you are about to kill.
-  </p>
-  <p>
-    That is the part worth automating: not the killing, the <strong>identifying</strong>.
-  </p>
-
-  <h2>portman</h2>
   <p>
     A menu-bar (macOS) or system-tray (Linux) app that lists only your dev servers — with the
     detected <strong>project name</strong> and <strong>framework</strong> — and lets you open,
@@ -172,6 +136,32 @@ portman</pre>
   </div>
 
   <p><a class="btn" href="https://github.com/forgebay/portman">Source on GitHub</a></p>
+
+  <h2>Just need the command?</h2>
+  <pre><span class="cmt"># macOS and Linux — what is listening on port 3000</span>
+lsof -i :3000
+
+<span class="cmt"># Linux, without lsof</span>
+ss -ltnp | grep ':3000'</pre>
+
+  <h3>Kill it</h3>
+  <pre><span class="cmt"># ask it to shut down cleanly first (SIGTERM)</span>
+kill -15 &lt;PID&gt;
+
+<span class="cmt"># still there? force it (SIGKILL)</span>
+kill -9 &lt;PID&gt;
+
+<span class="cmt"># one-liner, macOS and Linux</span>
+kill -9 $(lsof -ti tcp:3000)
+
+<span class="cmt"># Linux alternative</span>
+fuser -k 3000/tcp</pre>
+
+  <div class="note">
+    <strong>Prefer <code>-15</code> over <code>-9</code>.</strong> <code>SIGTERM</code> lets the
+    process flush writes and close database connections. <code>SIGKILL</code> gives it no chance —
+    reach for it only when the polite signal is ignored.
+  </div>
 
   <h2>Honest alternatives</h2>
   <p>
